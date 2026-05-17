@@ -1,0 +1,17 @@
+# Hand-curated shopping lists used by the matcher accuracy test.
+# Each entry: an input list + the canonical_id(s) we expect to match.
+# Used once a populated DuckDB is available — skipped in CI without it.
+
+lists:
+  - input: ["קוטג' תנובה 5%"]
+    expect:
+      - tnuva_cottage_5
+  - input: ["במבה אסם"]
+    expect:
+      - osem_bamba
+  - input: ["חלב 3% טרה"]
+    expect:
+      - tara_milk_3
+  - input: ["לחם אחיד"]
+    expect:
+      - achdut_bread

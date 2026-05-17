@@ -1,0 +1,11 @@
+# Manual product-to-canonical-id overrides.
+# Use when fuzzy linking misses a known correspondence.
+#
+# Format:
+#   - canonical_id: <existing canonical_id>
+#     also_known_as:
+#       - <free-text alias 1>
+#       - <free-text alias 2>
+#
+# Empty in MVP — populate as gaps surface from real shopping lists.
+links: []

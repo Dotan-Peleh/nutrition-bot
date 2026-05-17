@@ -1,0 +1,7 @@
+# Golden alternative pairs used by the alternatives sanity test.
+# Expected: the listed alternative appears in top-3 for the given current.
+pairs:
+  - current: tnuva_cottage_5
+    expect_alternative: tnuva_cottage_3
+  - current: strauss_cottage_9
+    expect_alternative: tnuva_cottage_3
