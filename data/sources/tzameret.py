@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 
 CKAN_BASE = "https://data.gov.il/api/3/action"
-PACKAGE_ID = "tzameret-food-list"
+PACKAGE_ID = "nutrition-database"
 
 RESOURCE_CACHE_PATH = Path(__file__).parent.parent / "tzameret_resources.json"
 PAGE_SIZE = 1000
@@ -75,11 +75,31 @@ def fetch_table(resource_id: str, *, client: httpx.Client | None = None) -> list
             client.close()
 
 
+def _alias_key(hebrew_name: str) -> str:
+    """Map the upstream Hebrew resource title to a stable English key.
+
+    data.gov.il renamed the dataset (tzameret-food-list → nutrition-database) and
+    exposes resources under Hebrew titles. We pin the known prefixes to the
+    English names the ETL orchestrator expects.
+    """
+    n = hebrew_name.strip()
+    if n.startswith("רשימת המצרכים"):
+        return "tzameret_food_list"
+    if n.startswith("רשימת המתכונים"):
+        return "tzameret_recipes"
+    if n.startswith("טבלת יחידות מידה"):
+        return "tzameret_units"
+    if n.startswith("טבלת משקל"):
+        return "tzameret_unit_weights"
+    return n
+
+
 def fetch_all() -> dict[str, list[dict]]:
     """Convenience: pull every Tzameret resource. Slow — use in ETL only."""
     out: dict[str, list[dict]] = {}
     with _client() as client:
         resources = discover_resources(client)
         for name, rid in resources.items():
-            out[name] = fetch_table(rid, client=client)
+            key = _alias_key(name)
+            out[key] = fetch_table(rid, client=client)
     return out

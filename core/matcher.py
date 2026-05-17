@@ -67,6 +67,11 @@ def _all_candidates(con: duckdb.DuckDBPyConnection, brand: str | None,
     else:
         sql = base_sql
     rows = con.execute(sql, params).fetchall()
+    # Fallback: if a brand/category prefilter returned nothing (common when the
+    # catalog has NULL category_ids), widen to the full products table so fuzzy
+    # still has something to match against.
+    if where and not rows:
+        rows = con.execute(base_sql).fetchall()
 
     # Add alias rows so fuzzy can hit synonyms.
     alias_rows = con.execute(

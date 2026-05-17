@@ -68,18 +68,65 @@ def _insert_product(con: duckdb.DuckDBPyConnection, rec: dict) -> str:
     return cid
 
 
+_TZAMERET_2DIGIT = {
+    # Dairy
+    "11": "milk", "12": "milk", "13": "soft_cheese", "14": "yogurt",
+    # Meat / fish / eggs (group 2x)
+    "21": "meat_fish", "22": "meat_fish", "23": "meat_fish",
+    "24": "meat_fish", "25": "meat_fish", "26": "meat_fish",
+    "27": "meat_fish", "28": "meat_fish",
+    # Eggs / legumes / nuts (3x, 4x)
+    "31": "pantry", "41": "pantry", "42": "pantry", "43": "pantry", "44": "pantry",
+    # Grains / bread / pasta (5x)
+    "50": "bakery", "51": "bakery", "52": "bakery", "53": "bakery",
+    "54": "bakery", "55": "bakery", "56": "bakery", "57": "breakfast",
+    # Fruits, vegetables (6x, 7x)
+    "61": "produce", "62": "produce", "63": "produce", "64": "produce",
+    "71": "produce", "72": "produce", "73": "produce", "74": "produce", "75": "produce",
+    # Fats and oils (8x)
+    "81": "pantry", "82": "pantry", "83": "pantry",
+    # Sweets, sugars, beverages (9x)
+    "91": "sweets", "92": "sweets", "93": "beverages", "94": "beverages",
+}
+
+
+def _map_tzameret_category(source_id: str, name_he: str) -> str | None:
+    """Map Tzameret smlmitzrach prefix + name keywords to taxonomy category_id."""
+    name = (name_he or "").lower()
+    # Name-based overrides for distinct sub-categories first
+    if "קוטג" in name:
+        return "cottage"
+    if "במבה" in name or "חטיף" in name or "ביסלי" in name:
+        return "snacks"
+    if "גבינה קשה" in name or "צהוב" in name or "אמנטל" in name:
+        return "hard_cheese"
+    if "חמאה" in name:
+        return "butter"
+    if "שמנת" in name:
+        return "cream"
+    code = (source_id or "").lstrip()
+    if len(code) >= 2:
+        cat = _TZAMERET_2DIGIT.get(code[:2])
+        if cat:
+            return cat
+    return None
+
+
 def _load_tzameret(con: duckdb.DuckDBPyConnection) -> int:
     LOG.info("fetching Tzameret …")
     tables = tzameret.fetch_all()
     food_list = tables.get("tzameret_food_list", [])
     inserted = 0
     for row in food_list:
+        source_id = str(row.get("smlmitzrach") or row.get("food_code") or row.get("_id") or "")
+        name_he = row.get("shmmitzrach") or row.get("name_he") or ""
         rec = {
             "source": "tzameret",
-            "source_id": str(row.get("smlmitzrach") or row.get("food_code") or row.get("_id") or ""),
-            "name_he": row.get("shmmitzrach") or row.get("name_he") or "",
+            "source_id": source_id,
+            "name_he": name_he,
             "name_en": row.get("english_name"),
-            "category_id": None,  # mapped in `_link()`
+            "category_id": _map_tzameret_category(source_id, name_he),
+            "available_in_il": True,  # Tzameret is the Israeli MoH catalog
             "serving_size_g": _coerce_float(row.get("portion_size_g")),
             "nutrients": {
                 "energy_kj":  _coerce_float(row.get("energy_kj")),

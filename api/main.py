@@ -7,9 +7,11 @@ from contextlib import asynccontextmanager
 import duckdb
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from api.routes import analyze, products, score
 from data.db import connect, init_schema
+from api.ui import INDEX_HTML
 
 VERSION = "0.1.0"
 
@@ -45,8 +47,8 @@ def create_app() -> FastAPI:
     app.include_router(products.router)
     app.include_router(score.router)
 
-    @app.get("/healthz")
-    def healthz() -> dict:
+    @app.get("/health")
+    def health() -> dict:
         try:
             row = app.state.db.execute("SELECT count(*) FROM products").fetchone()
             return {"ok": True, "products": int(row[0])}
@@ -56,6 +58,10 @@ def create_app() -> FastAPI:
     @app.get("/version")
     def version() -> dict:
         return {"version": VERSION}
+
+    @app.get("/", response_class=HTMLResponse)
+    def index() -> str:
+        return INDEX_HTML
 
     return app
 
