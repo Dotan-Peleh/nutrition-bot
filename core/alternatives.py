@@ -9,13 +9,19 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import duckdb
+from rapidfuzz import fuzz
 
 from core import scorer as scorer_mod
+from core.hebrew import normalize
 from schemas.products import Nutrients
 from schemas.requests import Profile
 from schemas.responses import AlternativeDelta
 
 MIN_IMPROVEMENT = 10
+# Alternatives must look like the same *kind* of product as the matched item.
+# Without this floor, "במבה" surfaces carob-chocolate snacks (same `snacks`
+# category, but a totally different food) and "גבינה צהובה" surfaces produce.
+MIN_NAME_SIMILARITY = 55.0
 
 
 def _load_nutrients(con: duckdb.DuckDBPyConnection, product_ids: Iterable[str]) -> dict[str, Nutrients]:
@@ -80,11 +86,16 @@ def find(
     if not rows:
         return []
 
+    current_name_row = con.execute(
+        "SELECT name_he FROM products WHERE canonical_id = ?", [current_id]
+    ).fetchone()
+    current_name_norm = normalize(current_name_row[0]) if current_name_row else ""
+
     ids = [r[0] for r in rows] + [current_id]
     nutrients_map = _load_nutrients(con, ids)
     current_nutrients = nutrients_map.get(current_id, Nutrients())
 
-    scored: list[tuple[int, str, str, str | None, Nutrients]] = []
+    scored: list[tuple[float, int, str, str, str | None, Nutrients]] = []
     for cid, name_he, brand in rows:
         n = nutrients_map.get(cid)
         if n is None:
@@ -94,11 +105,16 @@ def find(
             continue
         if breakdown.final_score < current_score + MIN_IMPROVEMENT:
             continue
-        scored.append((breakdown.final_score, cid, name_he, brand, n))
+        sim = fuzz.token_set_ratio(current_name_norm, normalize(name_he))
+        if sim < MIN_NAME_SIMILARITY:
+            continue
+        # Composite rank: name similarity dominates, score-delta breaks ties.
+        rank = sim + 0.3 * (breakdown.final_score - current_score)
+        scored.append((rank, breakdown.final_score, cid, name_he, brand, n))
 
     scored.sort(reverse=True, key=lambda t: t[0])
     out: list[AlternativeDelta] = []
-    for s, cid, name_he, brand, n in scored[:limit]:
+    for _rank, s, cid, name_he, brand, n in scored[:limit]:
         out.append(AlternativeDelta(
             canonical_id=cid,
             name_he=name_he,
@@ -106,5 +122,6 @@ def find(
             score=s,
             score_delta=s - current_score,
             explanation=_delta_explanation(current_nutrients, n),
+            nutrients=n,
         ))
     return out

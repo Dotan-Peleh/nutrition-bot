@@ -59,6 +59,7 @@ def analyze(req: AnalyzeRequest, request: Request) -> AnalyzeResponse:
 
         nutrients = _load_nutrients_one(con, m.product_id)
         nutrients_by_id[m.product_id] = nutrients
+        item.nutrients = nutrients
         breakdown = scorer_mod.score(nutrients, m.category_id, req.profile)
         item.score = breakdown
 

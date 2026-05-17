@@ -93,14 +93,16 @@ _TZAMERET_2DIGIT = {
 def _map_tzameret_category(source_id: str, name_he: str) -> str | None:
     """Map Tzameret smlmitzrach prefix + name keywords to taxonomy category_id."""
     name = (name_he or "").lower()
-    # Name-based overrides for distinct sub-categories first
+    # Name-based overrides for distinct sub-categories first.
+    # IMPORTANT: keywords must be context-anchored — bare adjectives like "צהוב"
+    # (yellow) match yellow peppers/peaches/etc. and silently corrupt categories.
     if "קוטג" in name:
         return "cottage"
-    if "במבה" in name or "חטיף" in name or "ביסלי" in name:
+    if "במבה" in name or "ביסלי" in name or "חטיף" in name or "פופקורן" in name:
         return "snacks"
-    if "גבינה קשה" in name or "צהוב" in name or "אמנטל" in name:
+    if "גבינה צהובה" in name or "גבינה קשה" in name or "אמנטל" in name or "צ'דר" in name:
         return "hard_cheese"
-    if "חמאה" in name:
+    if "חמאה" in name and "בוטנים" not in name:
         return "butter"
     if "שמנת" in name:
         return "cream"
