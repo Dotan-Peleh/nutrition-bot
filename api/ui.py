@@ -13,7 +13,7 @@ INDEX_HTML = """<!doctype html>
 <style>
   :root{
     --bg:#f7f7f5; --panel:#fff; --ink:#1a1a1a; --muted:#666;
-    --border:#e2e2dc; --accent:#1f6f4a;
+    --border:#e2e2dc; --accent:#1f6f4a; --accent-dim:#e7f2ec;
     --a:#1b8a4a; --b:#5fae34; --c:#d6a700; --d:#df6b14; --e:#c0282b;
     --bad-bg:#fdecec; --bad-ink:#9b1c1c;
     --good-bg:#eaf6ed; --good-ink:#155a3a;
@@ -56,7 +56,31 @@ INDEX_HTML = """<!doctype html>
   button:hover{background:#155a3a}
   button:disabled{opacity:.5;cursor:wait}
 
-  .results{margin-top:24px}
+  /* Sticky cart summary at top of results */
+  .cart-banner{position:sticky;top:0;z-index:5;background:var(--panel);
+    border:1px solid var(--border);border-radius:12px;padding:14px 18px;
+    margin:24px 0 18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  .cart-banner h2{margin:0 0 10px;font-size:14px;color:var(--muted);
+    font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .cart-scores{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center}
+  .score-col{text-align:center}
+  .score-col .label{font-size:12px;color:var(--muted);margin-bottom:4px}
+  .score-col .big{font-size:32px;font-weight:700;line-height:1}
+  .score-col.before .big{color:var(--ink)}
+  .score-col.after .big{color:var(--good-ink)}
+  .score-arrow{font-size:24px;color:var(--good-ink)}
+  .score-arrow.neg{color:var(--bad-ink)}
+  .score-arrow.zero{color:var(--muted)}
+  .delta-pill{display:inline-block;margin-top:6px;padding:3px 10px;
+    border-radius:12px;background:var(--good-bg);color:var(--good-ink);
+    font-size:12px;font-weight:600}
+  .delta-pill.neg{background:var(--bad-bg);color:var(--bad-ink)}
+  .delta-pill.zero{background:#eee;color:var(--muted)}
+  .grade-pills{display:flex;gap:4px;justify-content:center;margin-top:6px;flex-wrap:wrap}
+  .grade-pills .grade{font-size:11px;padding:2px 6px;min-width:0}
+  .hint{text-align:center;color:var(--muted);font-size:12px;margin-top:10px}
+
+  /* Item cards */
   .item{background:var(--panel);border:1px solid var(--border);border-radius:10px;
     padding:14px 16px;margin-bottom:14px}
   .head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
@@ -67,6 +91,10 @@ INDEX_HTML = """<!doctype html>
   .grade.E{background:var(--e)}
   .name{font-weight:600}
   .raw{color:var(--muted);font-size:12px}
+  .swapped-badge{margin-right:auto;background:var(--accent-dim);color:var(--accent);
+    padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+  .undo-link{background:none;border:0;color:var(--accent);
+    font-size:12px;cursor:pointer;padding:0;margin:0}
 
   /* Nutrient table */
   .nutrients{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;
@@ -88,16 +116,19 @@ INDEX_HTML = """<!doctype html>
   .alts{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)}
   .alts h3{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:600}
   .alt{background:#fafaf6;border:1px solid var(--border);border-radius:8px;
-    padding:10px 12px;margin-bottom:8px}
+    padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:all .15s}
+  .alt:hover{border-color:var(--accent);background:#f4f9f5}
+  .alt.selected{border-color:var(--accent);background:var(--accent-dim);
+    box-shadow:0 0 0 2px var(--accent) inset}
   .alt-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
   .alt-name{font-weight:500;font-size:14px}
   .alt-delta{color:var(--good-ink);font-weight:700;font-size:13px}
   .alt-why{color:var(--good-ink);font-size:12px;margin-top:4px}
+  .alt-pick{margin-top:8px;text-align:left;font-size:12px;color:var(--accent);
+    font-weight:600}
+  .alt.selected .alt-pick::before{content:"✓ "}
+  .alt:not(.selected) .alt-pick::before{content:"בחר → "}
 
-  .cart{background:var(--panel);border:1px solid var(--border);border-radius:10px;
-    padding:14px 16px;margin-top:16px}
-  .cart h2{margin:0 0 8px;font-size:15px}
-  .grade-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .err{color:var(--e);margin-top:10px;font-size:13px}
   .nomatch{color:var(--muted);font-style:italic;font-size:13px}
 </style>
@@ -105,7 +136,7 @@ INDEX_HTML = """<!doctype html>
 <body>
 <header>
   <h1>NutriCart · ניתוח רשימת קניות</h1>
-  <p>חפש מוצר כדי לראות מה קיים, או הדבק רשימה (פריט בכל שורה) ולחץ "נתח".</p>
+  <p>חפש מוצר כדי לראות מה קיים, או הדבק רשימה ולחץ "נתח". לאחר הניתוח — בחר חלופות וצפה איך הציון הכולל משתפר.</p>
 </header>
 <main>
   <div class="search-wrap">
@@ -131,7 +162,7 @@ INDEX_HTML = """<!doctype html>
     </div>
   </div>
 
-  <section class="results" id="results"></section>
+  <section id="results"></section>
 </main>
 
 <script>
@@ -195,6 +226,10 @@ function addToList(name) {
   ta.value = (ta.value.trim() + '\\n' + name).trim() + '\\n';
 }
 
+// ------- State -------
+// itemIdx → alt_canonical_id (null = keep original)
+let state = { data: null, selections: {} };
+
 // ------- Nutrient rendering -------
 const NUTRIENT_LABELS = {
   energy_kj: ['אנרגיה', 'kJ'],
@@ -214,7 +249,7 @@ function fmt(v, unit) {
   return v.toFixed(2);
 }
 
-function renderNutrients(nutrients, redFlags, altNutrients) {
+function renderNutrients(nutrients, redFlags, compareTo) {
   if (!nutrients) return '';
   const flagged = new Set((redFlags||[]).map(f => RED_FLAG_KEY[f.nutrient]).filter(Boolean));
   let html = '<div class="nutrients">';
@@ -222,9 +257,8 @@ function renderNutrients(nutrients, redFlags, altNutrients) {
     const v = nutrients[key];
     let cls = 'n-cell';
     if (flagged.has(key)) cls += ' bad';
-    // If we're rendering an alternative, mark cells where alt is meaningfully better
-    if (altNutrients) {
-      const orig = altNutrients[key];
+    if (compareTo) {
+      const orig = compareTo[key];
       if (orig != null && v != null) {
         const improvedDown = ['sodium_mg','sugars_g','sat_fat_g'].includes(key);
         const improvedUp = ['fiber_g','protein_g'].includes(key);
@@ -249,55 +283,150 @@ function renderNutrients(nutrients, redFlags, altNutrients) {
   return html + '<div class="per100">ל-100 גרם / 100 מ"ל</div>';
 }
 
-function render(data) {
-  const out = document.getElementById('results');
-  out.innerHTML = '';
-  for (const it of data.items) {
-    const card = document.createElement('div');
-    card.className = 'item';
-    if (!it.matched_name_he) {
-      card.innerHTML = `<div class="head"><span class="raw">${it.raw}</span>
-                        <span class="nomatch">לא נמצאה התאמה במאגר</span></div>`;
-    } else {
-      const g = it.score?.nutri_score_grade || '-';
-      const s = it.score?.final_score ?? '-';
-      let html = `<div class="head">
-        <span class="grade ${g}">${g}</span>
-        <div>
-          <div class="name">${it.matched_name_he}</div>
-          <div class="raw">${it.raw} · ציון ${s}/100</div>
-        </div>
-      </div>`;
-      html += renderNutrients(it.nutrients, it.score?.red_label_flags);
-
-      if (it.alternatives && it.alternatives.length) {
-        html += '<div class="alts"><h3>חלופות בריאות יותר באותה קטגוריה:</h3>';
-        for (const a of it.alternatives) {
-          html += `<div class="alt">
-            <div class="alt-head">
-              <span class="alt-name">${a.name_he}</span>
-              <span class="alt-delta">+${a.score_delta} נק׳ · ציון ${a.score}</span>
-            </div>
-            <div class="alt-why">✓ ${a.explanation}</div>
-            ${renderNutrients(a.nutrients, null, it.nutrients)}
-          </div>`;
-        }
-        html += '</div>';
-      }
-      card.innerHTML = html;
-    }
-    out.appendChild(card);
+// ------- Cart recomputation -------
+function effectiveScore(item, idx) {
+  const sel = state.selections[idx];
+  if (sel && item.alternatives) {
+    const alt = item.alternatives.find(a => a.canonical_id === sel);
+    if (alt) return alt.score;
   }
-  const cart = data.cart;
-  const cartEl = document.createElement('div');
-  cartEl.className = 'cart';
-  const pills = Object.entries(cart.grade_distribution || {})
-    .map(([g,n]) => `<span class="grade ${g}">${g}×${n}</span>`).join('');
-  cartEl.innerHTML = `<h2>סיכום עגלה</h2>
-    <div>ציון כולל: <b>${cart.total_score}/100</b></div>
-    <div class="grade-pills">${pills}</div>`;
-  out.appendChild(cartEl);
+  return item.score ? item.score.final_score : null;
 }
+function effectiveGrade(item, idx) {
+  const sel = state.selections[idx];
+  if (sel && item.alternatives) {
+    const alt = item.alternatives.find(a => a.canonical_id === sel);
+    if (alt) {
+      // Derive grade from score range — same bins the scorer uses.
+      const s = alt.score;
+      return s >= 80 ? 'A' : s >= 60 ? 'B' : s >= 40 ? 'C' : s >= 20 ? 'D' : 'E';
+    }
+  }
+  return item.score ? item.score.nutri_score_grade : null;
+}
+
+function computeCart(data, selections) {
+  const scored = data.items.filter(it => it.score != null);
+  if (!scored.length) return {before: 0, after: 0, beforeGrades: {}, afterGrades: {}};
+  const beforeAvg = scored.reduce((s,it) => s + it.score.final_score, 0) / scored.length;
+  let afterAvg = 0;
+  const beforeGrades = {}, afterGrades = {};
+  data.items.forEach((it, idx) => {
+    if (!it.score) return;
+    const eff = effectiveScore(it, idx);
+    afterAvg += eff;
+    beforeGrades[it.score.nutri_score_grade] = (beforeGrades[it.score.nutri_score_grade]||0) + 1;
+    const ag = effectiveGrade(it, idx);
+    afterGrades[ag] = (afterGrades[ag]||0) + 1;
+  });
+  afterAvg = afterAvg / scored.length;
+  return {
+    before: Math.round(beforeAvg),
+    after: Math.round(afterAvg),
+    beforeGrades, afterGrades,
+  };
+}
+
+// ------- Render -------
+function gradePillsHtml(dist) {
+  return Object.entries(dist).map(([g,n]) =>
+    `<span class="grade ${g}">${g}×${n}</span>`).join('');
+}
+
+function renderCartBanner() {
+  const c = computeCart(state.data, state.selections);
+  const delta = c.after - c.before;
+  let arrow = '→', arrowCls = 'zero', pillCls = 'zero', pillTxt = 'ללא שינוי';
+  if (delta > 0) { arrow = '↑'; arrowCls = ''; pillCls = ''; pillTxt = `+${delta} נקודות`; }
+  else if (delta < 0) { arrow = '↓'; arrowCls = 'neg'; pillCls = 'neg'; pillTxt = `${delta} נקודות`; }
+  const hint = Object.keys(state.selections).length === 0
+    ? 'בחר חלופות למטה כדי לראות איך הציון הכולל משתפר'
+    : `בחרת ${Object.keys(state.selections).length} חלופות — לחץ שוב כדי לבטל`;
+  return `<div class="cart-banner">
+    <h2>ציון העגלה הכולל</h2>
+    <div class="cart-scores">
+      <div class="score-col before">
+        <div class="label">לפני</div>
+        <div class="big">${c.before}<span style="font-size:14px;color:#888">/100</span></div>
+        <div class="grade-pills">${gradePillsHtml(c.beforeGrades)}</div>
+      </div>
+      <div class="score-arrow ${arrowCls}">${arrow}</div>
+      <div class="score-col after">
+        <div class="label">אחרי השינויים</div>
+        <div class="big">${c.after}<span style="font-size:14px;color:#888">/100</span></div>
+        <div class="grade-pills">${gradePillsHtml(c.afterGrades)}</div>
+        <div class="delta-pill ${pillCls}">${pillTxt}</div>
+      </div>
+    </div>
+    <div class="hint">${hint}</div>
+  </div>`;
+}
+
+function renderItem(it, idx) {
+  if (!it.matched_name_he) {
+    return `<div class="item"><div class="head"><span class="raw">${it.raw}</span>
+            <span class="nomatch">לא נמצאה התאמה במאגר</span></div></div>`;
+  }
+  const sel = state.selections[idx];
+  const selAlt = sel && it.alternatives ? it.alternatives.find(a=>a.canonical_id===sel) : null;
+  const showName = selAlt ? selAlt.name_he : it.matched_name_he;
+  const showScore = selAlt ? selAlt.score : it.score.final_score;
+  const showGrade = effectiveGrade(it, idx);
+  const showNutrients = selAlt ? selAlt.nutrients : it.nutrients;
+  const showFlags = selAlt ? null : (it.score ? it.score.red_label_flags : null);
+
+  let html = `<div class="item"><div class="head">
+    <span class="grade ${showGrade}">${showGrade}</span>
+    <div>
+      <div class="name">${showName}</div>
+      <div class="raw">${it.raw} · ציון ${showScore}/100</div>
+    </div>`;
+  if (selAlt) {
+    html += `<span class="swapped-badge">הוחלף</span>
+             <button class="undo-link" onclick="undoSwap(${idx})">חזור למקורי</button>`;
+  }
+  html += `</div>`;
+  html += renderNutrients(showNutrients, showFlags, selAlt ? it.nutrients : null);
+
+  if (it.alternatives && it.alternatives.length) {
+    html += '<div class="alts"><h3>בחר חלופה כדי להחליף ולעדכן את הציון הכולל:</h3>';
+    for (const a of it.alternatives) {
+      const isSel = sel === a.canonical_id;
+      html += `<div class="alt ${isSel?'selected':''}" onclick="pickAlt(${idx},'${a.canonical_id}')">
+        <div class="alt-head">
+          <span class="alt-name">${a.name_he}</span>
+          <span class="alt-delta">+${a.score_delta} נק׳ · ציון ${a.score}</span>
+        </div>
+        <div class="alt-why">✓ ${a.explanation}</div>
+        ${renderNutrients(a.nutrients, null, it.nutrients)}
+        <div class="alt-pick">${isSel?'נבחר':'החלף לזה'}</div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderAll() {
+  if (!state.data) return;
+  const out = document.getElementById('results');
+  let html = renderCartBanner();
+  state.data.items.forEach((it, idx) => { html += renderItem(it, idx); });
+  out.innerHTML = html;
+}
+
+function pickAlt(idx, altId) {
+  if (state.selections[idx] === altId) {
+    delete state.selections[idx];
+  } else {
+    state.selections[idx] = altId;
+  }
+  renderAll();
+}
+function undoSwap(idx) { delete state.selections[idx]; renderAll(); }
+window.pickAlt = pickAlt;
+window.undoSwap = undoSwap;
 
 document.getElementById('go').addEventListener('click', async () => {
   const txt = document.getElementById('items').value.trim();
@@ -318,8 +447,9 @@ document.getElementById('go').addEventListener('click', async () => {
       body: JSON.stringify({items, profile}),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const data = await r.json();
-    render(data);
+    state.data = await r.json();
+    state.selections = {};
+    renderAll();
   } catch(e) {
     errEl.textContent = String(e);
   } finally {
