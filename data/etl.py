@@ -42,8 +42,8 @@ def _insert_product(con: duckdb.DuckDBPyConnection, rec: dict) -> str:
     con.execute(
         "INSERT OR IGNORE INTO products "
         "(canonical_id, name_he, name_en, brand, category_id, barcode, "
-        " source, source_id, serving_size_g, available_in_il, data_quality) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " source, source_id, serving_size_g, available_in_il, data_quality, image_url) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             cid,
             rec.get("name_he") or "",
@@ -56,6 +56,7 @@ def _insert_product(con: duckdb.DuckDBPyConnection, rec: dict) -> str:
             rec.get("serving_size_g"),
             bool(rec.get("available_in_il", False)),
             rec.get("data_quality", "ok"),
+            rec.get("image_url"),
         ],
     )
     for code, value in (rec.get("nutrients") or {}).items():
@@ -152,10 +153,40 @@ def _load_off(con: duckdb.DuckDBPyConnection, limit: int | None = None) -> int:
     dump = off.download(RAW_DIR / "off.jsonl.gz")
     inserted = 0
     for rec in off.collect(dump, limit=limit):
-        _insert_product(con, rec | {"available_in_il": False})
+        # OFF.iter_israeli() already filters by country=Israel, so flip the flag.
+        rec.setdefault("category_id", _map_off_category(rec))
+        _insert_product(con, rec | {"available_in_il": True})
         inserted += 1
+        if inserted % 5000 == 0:
+            LOG.info("OFF: %d products inserted so far", inserted)
     LOG.info("OFF: %d Israeli products", inserted)
     return inserted
+
+
+def _map_off_category(rec: dict) -> str | None:
+    """Map OFF categories_tags + name keywords to our 48-leaf taxonomy.
+
+    OFF tags look like 'en:dairies', 'en:cheeses', 'en:yogurts', etc. We use a
+    coarse prefix lookup; the name-based overrides from _map_tzameret_category
+    are reused for finer cuts.
+    """
+    name_he = rec.get("name_he") or rec.get("name_en") or ""
+    tagged = _map_tzameret_category("", name_he)
+    if tagged:
+        return tagged
+    tags = " ".join(rec.get("categories_tags") or []).lower()
+    if "yogurt" in tags: return "yogurt"
+    if "cheese" in tags: return "soft_cheese"
+    if "milk" in tags: return "milk"
+    if "bread" in tags or "bakery" in tags: return "bakery"
+    if "cereal" in tags or "breakfast" in tags: return "breakfast"
+    if "snack" in tags or "chips" in tags: return "snacks"
+    if "soft-drink" in tags or "beverage" in tags or "soda" in tags: return "beverages"
+    if "fruit" in tags or "vegetable" in tags or "produce" in tags: return "produce"
+    if "meat" in tags or "fish" in tags or "seafood" in tags: return "meat_fish"
+    if "sweet" in tags or "candy" in tags or "chocolate" in tags: return "sweets"
+    if "frozen" in tags: return "frozen"
+    return "pantry"
 
 
 def _load_transparency(con: duckdb.DuckDBPyConnection) -> int:

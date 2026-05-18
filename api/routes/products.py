@@ -35,17 +35,44 @@ def get_product(canonical_id: str, request: Request) -> Product:
 
 @router.post("/search")
 def search(q: str = Query(..., min_length=1), limit: int = 10, *, request: Request) -> list[dict]:
+    """Two-stage search.
+
+    The DB is now ~60k rows. Loading every row + running rapidfuzz on each was
+    ~1s per query — slow enough that the UI's 200ms debounce often saw the
+    response arrive after the next keystroke had already cancelled the render.
+    Now we:
+      1) Pre-filter via SQL LIKE on name_he + brand (DuckDB indexed scan, ~10ms)
+      2) rapidfuzz the survivors only (typically <500 rows)
+    """
     con = request.app.state.db
     q_norm = normalize(q)
+    like = f"%{q_norm}%"
     rows = con.execute(
-        "SELECT canonical_id, name_he, brand FROM products WHERE name_he IS NOT NULL"
+        "SELECT canonical_id, name_he, brand, image_url FROM products "
+        "WHERE name_he IS NOT NULL "
+        "AND (LOWER(name_he) LIKE ? OR LOWER(brand) LIKE ?) "
+        "LIMIT 500",
+        [like, like],
     ).fetchall()
     if not rows:
-        return []
+        # Fallback: no LIKE hits — try fuzzy across a capped sample so we still
+        # return *something* for typos like "קוטג" vs "קוטג'".
+        rows = con.execute(
+            "SELECT canonical_id, name_he, brand, image_url FROM products "
+            "WHERE name_he IS NOT NULL LIMIT 5000"
+        ).fetchall()
+        if not rows:
+            return []
     pool = {r[0]: normalize(f"{r[1]} {r[2] or ''}") for r in rows}
     hits = process.extract(q_norm, pool, scorer=fuzz.WRatio, limit=limit)
     by_id = {r[0]: r for r in rows}
     return [
-        {"canonical_id": cid, "name_he": by_id[cid][1], "brand": by_id[cid][2], "score": s}
+        {
+            "canonical_id": cid,
+            "name_he": by_id[cid][1],
+            "brand": by_id[cid][2],
+            "image_url": by_id[cid][3],
+            "score": s,
+        }
         for (_, s, cid) in hits
     ]

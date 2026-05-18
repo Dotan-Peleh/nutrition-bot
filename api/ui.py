@@ -42,6 +42,11 @@ INDEX_HTML = """<!doctype html>
   .suggestion:hover, .suggestion.active{background:#f3f3ee}
   .suggestion .meta{color:var(--muted);font-size:12px}
   .suggestion.empty{color:var(--muted);font-style:italic;cursor:default}
+  .sugg-row{display:flex;align-items:center;gap:10px}
+  .sugg-img{width:34px;height:34px;border-radius:6px;object-fit:cover;
+    background:#f0f0ec;border:1px solid var(--border);flex-shrink:0}
+  .sugg-text{flex:1;min-width:0}
+  .sugg-text>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   textarea{width:100%;min-height:120px;padding:12px;border:1px solid var(--border);
     border-radius:8px;background:#fff;font:14px/1.5 inherit;resize:vertical}
@@ -83,7 +88,11 @@ INDEX_HTML = """<!doctype html>
   /* Item cards */
   .item{background:var(--panel);border:1px solid var(--border);border-radius:10px;
     padding:14px 16px;margin-bottom:14px}
-  .head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .product-img{width:56px;height:56px;border-radius:8px;object-fit:cover;
+    background:#f0f0ec;border:1px solid var(--border);flex-shrink:0}
+  .alt-img{width:42px;height:42px;border-radius:6px;object-fit:cover;
+    background:#f0f0ec;border:1px solid var(--border);flex-shrink:0}
   .grade{display:inline-block;min-width:30px;text-align:center;
     padding:3px 8px;border-radius:6px;color:#fff;font-weight:700;font-size:14px}
   .grade.A{background:var(--a)} .grade.B{background:var(--b)}
@@ -187,8 +196,14 @@ async function doSearch(q) {
       for (const it of items) {
         const div = document.createElement('div');
         div.className = 'suggestion';
-        div.innerHTML = `<div>${it.name_he}</div>
-                         <div class="meta">${it.brand || ''} · התאמה ${Math.round(it.score)}%</div>`;
+        const img = it.image_url ? `<img class="sugg-img" src="${it.image_url}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<div class="sugg-img"></div>';
+        div.innerHTML = `<div class="sugg-row">
+          ${img}
+          <div class="sugg-text">
+            <div>${it.name_he}</div>
+            <div class="meta">${it.brand || ''} · התאמה ${Math.round(it.score)}%</div>
+          </div>
+        </div>`;
         div.addEventListener('mousedown', e => {
           e.preventDefault();
           addToList(it.name_he);
@@ -205,7 +220,14 @@ async function doSearch(q) {
 
 searchEl.addEventListener('input', () => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => doSearch(searchEl.value.trim()), 200);
+  // Show "..." placeholder immediately so the user sees something happening
+  if (searchEl.value.trim().length >= 2) {
+    suggBox.innerHTML = '<div class="suggestion empty">מחפש...</div>';
+    suggBox.classList.add('open');
+  } else {
+    closeSugg();
+  }
+  searchTimer = setTimeout(() => doSearch(searchEl.value.trim()), 250);
 });
 searchEl.addEventListener('blur', () => setTimeout(closeSugg, 200));
 searchEl.addEventListener('keydown', e => {
@@ -375,7 +397,10 @@ function renderItem(it, idx) {
   const showNutrients = selAlt ? selAlt.nutrients : it.nutrients;
   const showFlags = selAlt ? null : (it.score ? it.score.red_label_flags : null);
 
+  const showImg = selAlt ? selAlt.image_url : it.image_url;
+  const imgTag = showImg ? `<img class="product-img" src="${showImg}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
   let html = `<div class="item"><div class="head">
+    ${imgTag}
     <span class="grade ${showGrade}">${showGrade}</span>
     <div>
       <div class="name">${showName}</div>
@@ -392,9 +417,11 @@ function renderItem(it, idx) {
     html += '<div class="alts"><h3>בחר חלופה כדי להחליף ולעדכן את הציון הכולל:</h3>';
     for (const a of it.alternatives) {
       const isSel = sel === a.canonical_id;
+      const altImg = a.image_url ? `<img class="alt-img" src="${a.image_url}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
       html += `<div class="alt ${isSel?'selected':''}" onclick="pickAlt(${idx},'${a.canonical_id}')">
-        <div class="alt-head">
-          <span class="alt-name">${a.name_he}</span>
+        <div class="alt-head" style="align-items:flex-start">
+          ${altImg}
+          <span class="alt-name" style="flex:1">${a.name_he}</span>
           <span class="alt-delta">+${a.score_delta} נק׳ · ציון ${a.score}</span>
         </div>
         <div class="alt-why">✓ ${a.explanation}</div>

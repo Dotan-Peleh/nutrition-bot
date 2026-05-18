@@ -34,6 +34,13 @@ def _load_product_meta(con, product_id: str) -> tuple[str, str | None, str | Non
     return row[0], row[1], row[2]
 
 
+def _load_image_url(con, product_id: str) -> str | None:
+    row = con.execute(
+        "SELECT image_url FROM products WHERE canonical_id = ?", [product_id]
+    ).fetchone()
+    return row[0] if row else None
+
+
 @router.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest, request: Request) -> AnalyzeResponse:
     con = request.app.state.db
@@ -60,6 +67,7 @@ def analyze(req: AnalyzeRequest, request: Request) -> AnalyzeResponse:
         nutrients = _load_nutrients_one(con, m.product_id)
         nutrients_by_id[m.product_id] = nutrients
         item.nutrients = nutrients
+        item.image_url = _load_image_url(con, m.product_id)
         breakdown = scorer_mod.score(nutrients, m.category_id, req.profile)
         item.score = breakdown
 

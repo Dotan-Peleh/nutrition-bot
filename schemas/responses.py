@@ -40,6 +40,7 @@ class AlternativeDelta(BaseModel):
     score_delta: int
     explanation: str
     nutrients: Nutrients | None = None
+    image_url: str | None = None
 
 
 class AnalyzedItem(BaseModel):
@@ -51,6 +52,7 @@ class AnalyzedItem(BaseModel):
     match_confidence: float = 0.0
     qty: float = 1.0
     category_id: str | None = None
+    image_url: str | None = None
     nutrients: Nutrients | None = None
     score: ScoreBreakdown | None = None
     alternatives: list[AlternativeDelta] = Field(default_factory=list)

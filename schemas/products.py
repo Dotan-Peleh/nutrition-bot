@@ -36,4 +36,5 @@ class Product(BaseModel):
     serving_size_g: float | None = None
     available_in_il: bool = False
     data_quality: Literal["ok", "partial", "low"] = "ok"
+    image_url: str | None = None
     nutrients: Nutrients

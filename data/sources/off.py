@@ -16,7 +16,53 @@ JSONL_URL = "https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.
 FIELDS = (
     "code", "product_name", "product_name_he", "brands", "categories_tags",
     "countries_tags", "nutriments", "nutriscore_grade", "nova_group", "serving_size",
+    "images",
 )
+
+
+def _code_path(code: str) -> str:
+    """Insert / every 3 digits (with the last segment holding the remainder).
+
+    OFF stores product images under a sharded path:
+        https://images.openfoodfacts.org/images/products/{code_path}/...
+    For barcodes >8 chars, split as 3/3/3/rest. Shorter codes stay flat.
+    """
+    code = (code or "").strip()
+    if not code.isdigit() or len(code) <= 8:
+        return code
+    return f"{code[:3]}/{code[3:6]}/{code[6:9]}/{code[9:]}"
+
+
+def _image_url(code: str, images: dict | None) -> str | None:
+    """Best-effort front image URL at 400px.
+
+    Schema variants seen in 2025 OFF dumps:
+      A) {"selected": {"front": {"<lang>": {"rev": "6", "imgid": "1"}}}, ...}
+      B) flat {"front_<lang>": {"rev": "12", ...}, "1": {...}, "2": {...}}
+    """
+    if not code or not images:
+        return None
+    rev = None
+    lang = None
+    # Schema A: selected.front.{lang}
+    sel_front = (images.get("selected") or {}).get("front") or {}
+    if sel_front:
+        # Prefer Hebrew, then English, then any.
+        for cand in ("he", "en", "fr", *sel_front.keys()):
+            if cand in sel_front:
+                lang = cand
+                rev = sel_front[cand].get("rev")
+                break
+    # Schema B: flat key "front_<lang>" at top level
+    if not rev:
+        for cand in ("front_he", "front_en", "front_fr"):
+            if cand in images and isinstance(images[cand], dict):
+                lang = cand.split("_", 1)[1]
+                rev = images[cand].get("rev")
+                break
+    if not rev:
+        return None
+    return f"https://images.openfoodfacts.org/images/products/{_code_path(code)}/front_{lang}.{rev}.400.jpg"
 
 
 def download(dest: Path, *, force: bool = False) -> Path:
@@ -24,7 +70,7 @@ def download(dest: Path, *, force: bool = False) -> Path:
     if dest.exists() and not force:
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
-    with httpx.stream("GET", JSONL_URL, timeout=None) as r:
+    with httpx.stream("GET", JSONL_URL, timeout=None, follow_redirects=True) as r:
         r.raise_for_status()
         with dest.open("wb") as f:
             for chunk in r.iter_bytes():
@@ -59,6 +105,7 @@ def to_nutricart_record(rec: dict) -> dict:
         "serving_size_g": _parse_serving(rec.get("serving_size")),
         "nutriscore_grade": rec.get("nutriscore_grade"),
         "categories_tags": rec.get("categories_tags") or [],
+        "image_url": _image_url(rec.get("code"), rec.get("images")),
         "nutrients": {
             "energy_kj":  float(nutriments.get("energy-kj_100g") or 0),
             "sat_fat_g":  float(nutriments.get("saturated-fat_100g") or 0),

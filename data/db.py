@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS products (
     source_id        TEXT NOT NULL,
     serving_size_g   DOUBLE,
     available_in_il  BOOLEAN DEFAULT FALSE,
-    data_quality     TEXT DEFAULT 'ok'          -- 'ok' | 'partial' | 'low'
+    data_quality     TEXT DEFAULT 'ok',         -- 'ok' | 'partial' | 'low'
+    image_url        TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);

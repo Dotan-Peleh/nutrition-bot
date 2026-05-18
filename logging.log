@@ -1,0 +1,12 @@
+Logger       2026-05-18 00:55:45,042 INFO     [MainThread] logger.py:info Enabled scrapers: ['SHUFERSAL']
+Logger       2026-05-18 00:55:45,042 INFO     [Thread-1 (_run)] logger.py:info Limit is None
+Logger       2026-05-18 00:55:45,042 INFO     [Thread-1 (_run)] logger.py:info files_types is ['PRICE_FULL_FILE']
+Logger       2026-05-18 00:55:45,042 INFO     [Thread-1 (_run)] logger.py:info Start scraping ['SHUFERSAL'].
+Logger       2026-05-18 01:22:34,957 INFO     [MainThread] logger.py:info Enabled scrapers: ['SHUFERSAL', 'RAMI_LEVY', 'VICTORY']
+Logger       2026-05-18 01:22:34,957 INFO     [Thread-1 (_run)] logger.py:info Limit is None
+Logger       2026-05-18 01:22:34,958 INFO     [Thread-1 (_run)] logger.py:info files_types is ['PRICE_FULL_FILE']
+Logger       2026-05-18 01:22:34,958 INFO     [Thread-1 (_run)] logger.py:info Start scraping ['SHUFERSAL', 'RAMI_LEVY', 'VICTORY'].
+Logger       2026-05-18 02:47:15,840 INFO     [MainThread] logger.py:info Enabled scrapers: ['SHUFERSAL', 'RAMI_LEVY', 'VICTORY']
+Logger       2026-05-18 02:47:15,841 INFO     [Thread-1 (_run)] logger.py:info Limit is None
+Logger       2026-05-18 02:47:15,841 INFO     [Thread-1 (_run)] logger.py:info files_types is ['PRICE_FULL_FILE']
+Logger       2026-05-18 02:47:15,841 INFO     [Thread-1 (_run)] logger.py:info Start scraping ['SHUFERSAL', 'RAMI_LEVY', 'VICTORY'].
