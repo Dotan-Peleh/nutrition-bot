@@ -135,7 +135,11 @@ def _load_tzameret(con: duckdb.DuckDBPyConnection) -> int:
             "available_in_il": True,  # Tzameret is the Israeli MoH catalog
             "serving_size_g": _coerce_float(row.get("portion_size_g")),
             "nutrients": {
-                "energy_kj":  _coerce_float(row.get("energy_kj")),
+                # Tzameret ships kcal as `food_energy`; convert to kJ for the
+                # Nutri-Score scorer (1 kcal = 4.184 kJ).
+                "energy_kj":  (lambda kcal: kcal * 4.184 if kcal is not None else None)(
+                    _coerce_float(row.get("food_energy"))
+                ),
                 "sat_fat_g":  _coerce_float(row.get("saturated_fat")),
                 "sugars_g":   _coerce_float(row.get("total_sugars")),
                 "sodium_mg":  _coerce_float(row.get("sodium")),

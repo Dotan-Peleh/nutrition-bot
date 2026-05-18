@@ -24,6 +24,18 @@ MIN_IMPROVEMENT = 10
 MIN_NAME_SIMILARITY = 55.0
 
 
+def _has_real_nutrition(n: Nutrients) -> bool:
+    """True if the candidate has substantive nutrition data.
+
+    Tzameret stores kcal (food_energy) and the loader doesn't yet back-fill
+    energy_kj, so we don't require it. Sodium is the dominant Nutri-Score
+    signal in IL; require it plus at least one other negative.
+    """
+    if n.sodium_mg <= 0:
+        return False
+    return n.sat_fat_g > 0 or n.sugars_g > 0
+
+
 def _load_nutrients(con: duckdb.DuckDBPyConnection, product_ids: Iterable[str]) -> dict[str, Nutrients]:
     ids = list(product_ids)
     if not ids:
@@ -99,7 +111,7 @@ def find(
     scored = []
     for cid, name_he, brand, image_url, price_ils, price_per_100g in rows:
         n = nutrients_map.get(cid)
-        if n is None:
+        if n is None or not _has_real_nutrition(n):
             continue
         breakdown = scorer_mod.score(n, category_id=category_id, profile=profile)
         if breakdown.incompatible_with_profile:

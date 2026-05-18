@@ -73,10 +73,18 @@ def analyze(req: AnalyzeRequest, request: Request) -> AnalyzeResponse:
         item.category_id = m.category_id
 
         nutrients = _load_nutrients_one(con, m.product_id)
-        nutrients_by_id[m.product_id] = nutrients
-        item.nutrients = nutrients
         item.image_url = _load_image_url(con, m.product_id)
         item.price_ils, item.price_per_100g_ils = _load_price(con, m.product_id)
+        # Don't fake a Nutri-Score when the data is too thin. Require sodium
+        # (dominant IL signal) plus at least one of sat fat / sugars.
+        if not (nutrients.sodium_mg > 0 and (
+            nutrients.sat_fat_g > 0 or nutrients.sugars_g > 0
+        )):
+            item.notes.append("no_nutrition_data")
+            analyzed.append(item)
+            continue
+        nutrients_by_id[m.product_id] = nutrients
+        item.nutrients = nutrients
         breakdown = scorer_mod.score(nutrients, m.category_id, req.profile)
         item.score = breakdown
 

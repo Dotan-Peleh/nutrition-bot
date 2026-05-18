@@ -437,6 +437,18 @@ function renderItem(it, idx) {
     return `<div class="item"><div class="head"><span class="raw">${it.raw}</span>
             <span class="nomatch">לא נמצאה התאמה במאגר</span></div></div>`;
   }
+  if ((it.notes || []).includes('no_nutrition_data')) {
+    const imgTag = it.image_url ? `<img class="product-img" src="${it.image_url}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
+    const pTag = it.price_ils != null ? `<span class="price">${it.price_ils.toFixed(2)} ₪</span>` : '';
+    return `<div class="item"><div class="head">
+      ${imgTag}
+      <div style="flex:1">
+        <div class="name">${it.matched_name_he}</div>
+        <div class="raw">${it.raw} ${pTag}</div>
+        <div class="nomatch" style="margin-top:6px">אין מידע תזונתי במאגר — לא ניתן לחשב ציון</div>
+      </div>
+    </div></div>`;
+  }
   const sel = state.selections[idx];
   const selAlt = sel && it.alternatives ? it.alternatives.find(a=>a.canonical_id===sel) : null;
   const showName = selAlt ? selAlt.name_he : it.matched_name_he;
