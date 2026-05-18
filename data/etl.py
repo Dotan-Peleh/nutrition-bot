@@ -42,8 +42,9 @@ def _insert_product(con: duckdb.DuckDBPyConnection, rec: dict) -> str:
     con.execute(
         "INSERT OR IGNORE INTO products "
         "(canonical_id, name_he, name_en, brand, category_id, barcode, "
-        " source, source_id, serving_size_g, available_in_il, data_quality, image_url) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " source, source_id, serving_size_g, available_in_il, data_quality, "
+        " image_url, price_ils, price_per_100g_ils) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             cid,
             rec.get("name_he") or "",
@@ -57,6 +58,8 @@ def _insert_product(con: duckdb.DuckDBPyConnection, rec: dict) -> str:
             bool(rec.get("available_in_il", False)),
             rec.get("data_quality", "ok"),
             rec.get("image_url"),
+            rec.get("price_ils"),
+            rec.get("price_per_100g_ils"),
         ],
     )
     for code, value in (rec.get("nutrients") or {}).items():
@@ -203,9 +206,15 @@ def _load_transparency(con: duckdb.DuckDBPyConnection) -> int:
             [row["barcode"]],
         ).fetchone()
         if existing:
+            # Update existing product (likely an OFF row) with IL availability + price.
             con.execute(
-                "UPDATE products SET available_in_il = TRUE WHERE canonical_id = ?",
-                [existing[0]],
+                "UPDATE products SET available_in_il = TRUE, "
+                "price_ils = COALESCE(?, price_ils), "
+                "price_per_100g_ils = COALESCE(?, price_per_100g_ils), "
+                "brand = COALESCE(brand, ?) "
+                "WHERE canonical_id = ?",
+                [row.get("price_ils"), row.get("price_per_100g_ils"),
+                 row.get("brand"), existing[0]],
             )
         else:
             rec = {
@@ -216,6 +225,8 @@ def _load_transparency(con: duckdb.DuckDBPyConnection) -> int:
                 "barcode": row["barcode"],
                 "available_in_il": True,
                 "data_quality": "partial",   # no nutrition from this source
+                "price_ils": row.get("price_ils"),
+                "price_per_100g_ils": row.get("price_per_100g_ils"),
             }
             _insert_product(con, rec)
     LOG.info("transparency: %d SKUs touched", len(rows))

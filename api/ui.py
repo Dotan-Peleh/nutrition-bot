@@ -51,6 +51,21 @@ INDEX_HTML = """<!doctype html>
   textarea{width:100%;min-height:120px;padding:12px;border:1px solid var(--border);
     border-radius:8px;background:#fff;font:14px/1.5 inherit;resize:vertical}
 
+  /* Selected-product chips */
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:0}
+  .chips:empty{display:none}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:5px 10px 5px 6px;
+    background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent);
+    border-radius:18px;font-size:13px;font-weight:500;animation:pop .2s ease-out}
+  .chip::before{content:"✓";font-weight:700;margin-left:2px}
+  .chip-x{background:none;border:0;color:var(--accent);cursor:pointer;
+    padding:0 4px;margin:0;font-size:16px;line-height:1;opacity:.7}
+  .chip-x:hover{opacity:1}
+  .chip-img{width:24px;height:24px;border-radius:50%;object-fit:cover;
+    border:1px solid var(--border);background:#fff;margin-right:4px}
+  .chips-hint{color:var(--muted);font-size:12px;margin-bottom:4px}
+  @keyframes pop{from{transform:scale(0.85);opacity:0} to{transform:scale(1);opacity:1}}
+
   .row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   @media(max-width:780px){.row{grid-template-columns:1fr}}
   fieldset{border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:#fff}
@@ -100,6 +115,11 @@ INDEX_HTML = """<!doctype html>
   .grade.E{background:var(--e)}
   .name{font-weight:600}
   .raw{color:var(--muted);font-size:12px}
+  .price{display:inline-block;background:#f0f4f0;color:#333;font-weight:600;
+    padding:2px 8px;border-radius:12px;font-size:12px;margin-right:6px}
+  .price-unit{color:var(--muted);font-weight:400;font-size:11px;margin-right:4px}
+  .price-cheaper{background:var(--good-bg);color:var(--good-ink)}
+  .price-pricier{background:#fdf5e6;color:#9c4a00}
   .swapped-badge{margin-right:auto;background:var(--accent-dim);color:var(--accent);
     padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
   .undo-link{background:none;border:0;color:var(--accent);
@@ -153,9 +173,12 @@ INDEX_HTML = """<!doctype html>
     <div id="suggestions" class="suggestions"></div>
   </div>
 
+  <div id="chipsHint" class="chips-hint" style="display:none">המוצרים שבחרת מהחיפוש:</div>
+  <div id="chips" class="chips"></div>
+
   <div class="row">
     <div>
-      <textarea id="items" placeholder="קוטג׳ 5%&#10;לחם&#10;יוגורט"></textarea>
+      <textarea id="items" placeholder="או הדבק רשימה כאן, פריט בכל שורה (אופציונלי אם בחרת מהחיפוש למעלה)"></textarea>
     </div>
     <div>
       <fieldset>
@@ -206,7 +229,7 @@ async function doSearch(q) {
         </div>`;
         div.addEventListener('mousedown', e => {
           e.preventDefault();
-          addToList(it.name_he);
+          addToList(it);
           searchEl.value = '';
           closeSugg();
           searchEl.focus();
@@ -243,9 +266,34 @@ searchEl.addEventListener('keydown', e => {
     list[activeSugg].dispatchEvent(new MouseEvent('mousedown')); }
 });
 
-function addToList(name) {
-  const ta = document.getElementById('items');
-  ta.value = (ta.value.trim() + '\\n' + name).trim() + '\\n';
+// ------- Chips (explicitly chosen products) -------
+const chipsContainer = document.getElementById('chips');
+const chipsHint = document.getElementById('chipsHint');
+let chips = [];  // [{name, image_url}]
+
+function renderChips() {
+  chipsContainer.innerHTML = '';
+  chipsHint.style.display = chips.length ? '' : 'none';
+  chips.forEach((c, i) => {
+    const el = document.createElement('span');
+    el.className = 'chip';
+    const img = c.image_url ? `<img class="chip-img" src="${c.image_url}" alt="" onerror="this.style.display='none'">` : '';
+    el.innerHTML = `${img}<span>${c.name}</span><button class="chip-x" title="הסר" onclick="removeChip(${i})">×</button>`;
+    chipsContainer.appendChild(el);
+  });
+}
+function addChip(it) {
+  if (chips.some(c => c.name === it.name_he)) return;  // dedupe
+  chips.push({name: it.name_he, image_url: it.image_url});
+  renderChips();
+}
+function removeChip(i) { chips.splice(i, 1); renderChips(); }
+window.removeChip = removeChip;
+
+function addToList(item) {
+  // Backward-compat: still allow a plain string (typed from autocomplete keyboard nav).
+  if (typeof item === 'string') item = {name_he: item, image_url: null};
+  addChip(item);
 }
 
 // ------- State -------
@@ -399,12 +447,20 @@ function renderItem(it, idx) {
 
   const showImg = selAlt ? selAlt.image_url : it.image_url;
   const imgTag = showImg ? `<img class="product-img" src="${showImg}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
+  const showPrice = selAlt ? selAlt.price_ils : it.price_ils;
+  const showUnit = selAlt ? selAlt.price_per_100g_ils : it.price_per_100g_ils;
+  // Per-100g price varies wildly in chain XMLs (sometimes per-kg, per-unit, etc).
+  // Only show when it looks plausible: between 0.1₪ and the full price.
+  const unitOK = showUnit != null && showUnit >= 0.1 && showPrice != null && showUnit <= showPrice;
+  const priceChip = showPrice != null
+    ? `<span class="price">${showPrice.toFixed(2)} ₪${unitOK ? `<span class="price-unit"> (${showUnit.toFixed(2)}/100g)</span>` : ''}</span>`
+    : '';
   let html = `<div class="item"><div class="head">
     ${imgTag}
     <span class="grade ${showGrade}">${showGrade}</span>
-    <div>
+    <div style="flex:1">
       <div class="name">${showName}</div>
-      <div class="raw">${it.raw} · ציון ${showScore}/100</div>
+      <div class="raw">${it.raw} · ציון ${showScore}/100 ${priceChip}</div>
     </div>`;
   if (selAlt) {
     html += `<span class="swapped-badge">הוחלף</span>
@@ -418,11 +474,21 @@ function renderItem(it, idx) {
     for (const a of it.alternatives) {
       const isSel = sel === a.canonical_id;
       const altImg = a.image_url ? `<img class="alt-img" src="${a.image_url}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
+      let altPriceChip = '';
+      if (a.price_ils != null) {
+        let cls = 'price';
+        if (it.price_ils != null) {
+          if (a.price_ils < it.price_ils * 0.95) cls += ' price-cheaper';
+          else if (a.price_ils > it.price_ils * 1.05) cls += ' price-pricier';
+        }
+        const altUnitOK = a.price_per_100g_ils != null && a.price_per_100g_ils >= 0.1 && a.price_per_100g_ils <= a.price_ils;
+        altPriceChip = `<span class="${cls}">${a.price_ils.toFixed(2)} ₪${altUnitOK ? `<span class="price-unit"> (${a.price_per_100g_ils.toFixed(2)}/100g)</span>` : ''}</span>`;
+      }
       html += `<div class="alt ${isSel?'selected':''}" onclick="pickAlt(${idx},'${a.canonical_id}')">
         <div class="alt-head" style="align-items:flex-start">
           ${altImg}
           <span class="alt-name" style="flex:1">${a.name_he}</span>
-          <span class="alt-delta">+${a.score_delta} נק׳ · ציון ${a.score}</span>
+          <span class="alt-delta">+${a.score_delta} נק׳ · ציון ${a.score} ${altPriceChip}</span>
         </div>
         <div class="alt-why">✓ ${a.explanation}</div>
         ${renderNutrients(a.nutrients, null, it.nutrients)}
@@ -457,10 +523,15 @@ window.undoSwap = undoSwap;
 
 document.getElementById('go').addEventListener('click', async () => {
   const txt = document.getElementById('items').value.trim();
-  const items = txt.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
+  const typed = txt ? txt.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean) : [];
+  // Chips first (explicit picks), then typed lines. Dedupe by exact name.
+  const seen = new Set();
+  const items = [];
+  for (const c of chips)  { if (!seen.has(c.name)) { items.push(c.name); seen.add(c.name); } }
+  for (const t of typed)  { if (!seen.has(t))      { items.push(t);       seen.add(t); } }
   const errEl = document.getElementById('err');
   errEl.textContent = '';
-  if (!items.length) { errEl.textContent = 'הזן לפחות פריט אחד.'; return; }
+  if (!items.length) { errEl.textContent = 'הזן לפחות פריט אחד או בחר מהחיפוש.'; return; }
   const profile = {};
   for (const k of ['low_sodium','diabetic','high_protein','lactose_free','gluten_free']) {
     if (document.getElementById(k).checked) profile[k] = true;

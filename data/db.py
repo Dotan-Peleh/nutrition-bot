@@ -45,7 +45,9 @@ CREATE TABLE IF NOT EXISTS products (
     serving_size_g   DOUBLE,
     available_in_il  BOOLEAN DEFAULT FALSE,
     data_quality     TEXT DEFAULT 'ok',         -- 'ok' | 'partial' | 'low'
-    image_url        TEXT
+    image_url        TEXT,
+    price_ils        DOUBLE,                    -- median chain price (₪)
+    price_per_100g_ils DOUBLE                   -- normalized unit price (₪/100g)
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);

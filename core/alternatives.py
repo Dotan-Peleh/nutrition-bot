@@ -79,7 +79,8 @@ def find(
         return []
 
     rows = con.execute(
-        "SELECT canonical_id, name_he, brand, image_url FROM products "
+        "SELECT canonical_id, name_he, brand, image_url, price_ils, price_per_100g_ils "
+        "FROM products "
         "WHERE category_id = ? AND available_in_il AND canonical_id != ?",
         [category_id, current_id],
     ).fetchall()
@@ -95,8 +96,8 @@ def find(
     nutrients_map = _load_nutrients(con, ids)
     current_nutrients = nutrients_map.get(current_id, Nutrients())
 
-    scored: list[tuple[float, int, str, str, str | None, str | None, Nutrients]] = []
-    for cid, name_he, brand, image_url in rows:
+    scored = []
+    for cid, name_he, brand, image_url, price_ils, price_per_100g in rows:
         n = nutrients_map.get(cid)
         if n is None:
             continue
@@ -109,11 +110,13 @@ def find(
         if sim < MIN_NAME_SIMILARITY:
             continue
         rank = sim + 0.3 * (breakdown.final_score - current_score)
-        scored.append((rank, breakdown.final_score, cid, name_he, brand, image_url, n))
+        scored.append((rank, breakdown.final_score, cid, name_he, brand,
+                       image_url, price_ils, price_per_100g, n))
 
     scored.sort(reverse=True, key=lambda t: t[0])
     out: list[AlternativeDelta] = []
-    for _rank, s, cid, name_he, brand, image_url, n in scored[:limit]:
+    for tup in scored[:limit]:
+        _rank, s, cid, name_he, brand, image_url, price_ils, price_per_100g, n = tup
         out.append(AlternativeDelta(
             canonical_id=cid,
             name_he=name_he,
@@ -123,5 +126,7 @@ def find(
             explanation=_delta_explanation(current_nutrients, n),
             nutrients=n,
             image_url=image_url,
+            price_ils=price_ils,
+            price_per_100g_ils=price_per_100g,
         ))
     return out
